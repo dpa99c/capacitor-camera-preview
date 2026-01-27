@@ -590,11 +590,14 @@ public class Camera1Activity extends Fragment {
     private Camera.Size getOptimalPictureSize(
         final int width,
         final int height,
+        final int maxCaptureWidth,
+        final int maxCaptureHeight,
         final Camera.Size previewSize,
         final List<Camera.Size> supportedSizes
     ) {
         /*
       get the supportedPictureSize that:
+      - respects maxCaptureWidth/maxCaptureHeight limits (if set)
       - matches exactly width and height
       - has the closest aspect ratio to the preview aspect ratio
       - has picture.width and picture.height closest to width and height
@@ -618,13 +621,27 @@ public class Camera1Activity extends Fragment {
             previewAspectRatio = 1.0 / previewAspectRatio;
         }
 
-        Log.d(TAG, "CameraPreview previewAspectRatio " + previewAspectRatio);
+        Log.d(TAG, "CameraPreview previewAspectRatio " + previewAspectRatio + 
+              " maxCaptureWidth: " + maxCaptureWidth + " maxCaptureHeight: " + maxCaptureHeight);
 
         double aspectTolerance = ASPECT_TOLERANCE;
         double bestDifference = Double.MAX_VALUE;
 
+        // Determine effective max dimensions (handle both portrait and landscape)
+        final int effectiveMaxWidth = (maxCaptureWidth > 0 && maxCaptureHeight > 0) 
+            ? Math.max(maxCaptureWidth, maxCaptureHeight) : 0;
+        final int effectiveMaxHeight = (maxCaptureWidth > 0 && maxCaptureHeight > 0) 
+            ? Math.min(maxCaptureWidth, maxCaptureHeight) : 0;
+
         for (int i = 0; i < supportedSizes.size(); i++) {
             Camera.Size supportedSize = supportedSizes.get(i);
+
+            // Skip sizes that exceed max capture limits (if specified)
+            if (effectiveMaxWidth > 0 && effectiveMaxHeight > 0) {
+                if (supportedSize.width > effectiveMaxWidth || supportedSize.height > effectiveMaxHeight) {
+                    continue; // Skip this size - too large
+                }
+            }
 
             // Perfect match
             if (supportedSize.equals(requestedSize)) {
@@ -750,8 +767,26 @@ public class Camera1Activity extends Fragment {
         );
     }
 
+    /**
+     * Legacy takePicture method without max capture size limits.
+     * Calls the enhanced version with no limits (0, 0).
+     */
     public void takePicture(final int width, final int height, final int quality) {
-        Log.d(TAG, "CameraPreview takePicture width: " + width + ", height: " + height + ", quality: " + quality);
+        takePicture(width, height, quality, 0, 0);
+    }
+
+    /**
+     * Enhanced takePicture method with max capture size limits for performance optimization.
+     * 
+     * @param width Requested capture width (0 = use optimal size based on preview)
+     * @param height Requested capture height (0 = use optimal size based on preview)
+     * @param quality JPEG quality (0-100)
+     * @param maxCaptureWidth Maximum capture width limit (0 = no limit)
+     * @param maxCaptureHeight Maximum capture height limit (0 = no limit)
+     */
+    public void takePicture(final int width, final int height, final int quality, final int maxCaptureWidth, final int maxCaptureHeight) {
+        Log.d(TAG, "CameraPreview takePicture width: " + width + ", height: " + height + ", quality: " + quality + 
+              ", maxCaptureWidth: " + maxCaptureWidth + ", maxCaptureHeight: " + maxCaptureHeight);
 
         if (mPreview != null) {
             if (!canTakePicture) {
@@ -771,8 +806,9 @@ public class Camera1Activity extends Fragment {
                     }
                     Camera.Parameters params = mCamera.getParameters();
 
-                    Camera.Size size = getOptimalPictureSize(width, height, params.getPreviewSize(), params.getSupportedPictureSizes());
+                    Camera.Size size = getOptimalPictureSize(width, height, maxCaptureWidth, maxCaptureHeight, params.getPreviewSize(), params.getSupportedPictureSizes());
                     params.setPictureSize(size.width, size.height);
+                    Log.d(TAG, "Selected capture size: " + size.width + "x" + size.height);
                     currentQuality = quality;
 
                     if (cameraCurrentlyLocked == Camera.CameraInfo.CAMERA_FACING_FRONT && !storeToFile) {

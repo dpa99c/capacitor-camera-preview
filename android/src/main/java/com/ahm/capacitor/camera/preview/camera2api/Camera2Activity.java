@@ -223,6 +223,27 @@ public class Camera2Activity extends Fragment {
     }
 
     public void takePicture(final int width, final int height, final int quality) throws Exception {
+        // Backward compatible - no max capture limits
+        takePicture(width, height, quality, 0, 0);
+    }
+
+    /**
+     * Takes a still picture with the camera.
+     *
+     * @param width Requested capture width (0 = use preview/default size)
+     * @param height Requested capture height (0 = use preview/default size)
+     * @param quality JPEG compression quality (0-100)
+     * @param maxCaptureWidth Maximum capture width limit (0 = no limit). If set, the capture
+     *                        resolution will not exceed this width. Useful for reducing file
+     *                        size and improving display performance.
+     * @param maxCaptureHeight Maximum capture height limit (0 = no limit). If set, the capture
+     *                         resolution will not exceed this height.
+     */
+    public void takePicture(final int width, final int height, final int quality,
+                            final int maxCaptureWidth, final int maxCaptureHeight) throws Exception {
+        long captureStartTime = System.currentTimeMillis();
+        logMessage("takePicture() started");
+
         if (cameraDevice == null) {
             return;
         }
@@ -255,7 +276,33 @@ public class Camera2Activity extends Fragment {
                 imageHeight = jpegSizes[0].getHeight();
             }
         }
-        logMessage("takePicture: " + imageWidth + ", " + imageHeight + ", " + quality);
+
+        // Apply max capture size limits if specified
+        // This reduces capture resolution for better performance when full resolution isn't needed
+        if (maxCaptureWidth > 0 && maxCaptureHeight > 0) {
+            if (imageWidth > maxCaptureWidth || imageHeight > maxCaptureHeight) {
+                // Find the best JPEG size that fits within the max limits
+                Size[] jpegSizes = null;
+                if (mCameraCharacteristics != null) {
+                    jpegSizes = mCameraCharacteristics
+                        .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                        .getOutputSizes(android.graphics.ImageFormat.JPEG);
+                }
+                if (jpegSizes != null && jpegSizes.length > 0) {
+                    Size bestSize = findOptimalCaptureSize(jpegSizes, maxCaptureWidth, maxCaptureHeight);
+                    if (bestSize != null) {
+                        imageWidth = bestSize.getWidth();
+                        imageHeight = bestSize.getHeight();
+                        logMessage("Applied max capture limits: " + maxCaptureWidth + "x" + maxCaptureHeight +
+                            " -> selected capture size: " + imageWidth + "x" + imageHeight);
+                    }
+                }
+            }
+        }
+
+        logMessage("takePicture capture dimensions: " + imageWidth + "x" + imageHeight + ", quality: " + quality);
+        long setupTime = System.currentTimeMillis();
+        logMessage("takePicture() setup took " + (setupTime - captureStartTime) + "ms");
 
         // Use >1 maxImages to avoid buffer starvation on slower devices.
         final ImageReader reader = ImageReader.newInstance(imageWidth, imageHeight, android.graphics.ImageFormat.JPEG, 2);
@@ -312,7 +359,8 @@ public class Camera2Activity extends Fragment {
                             // Preserve EXIF and avoid expensive decode/rotate/re-encode when EXIF stripping is disabled.
                             saveRaw(bytes, path);
                         } else {
-                            save(bytes, path, quality);
+                            // Pass 0, 0 for max dimensions = no limit (backward compatible)
+                            save(bytes, path, quality, 0, 0);
                         }
                         eventListener.onPictureTaken(path);
                     }
@@ -345,22 +393,93 @@ public class Camera2Activity extends Fragment {
                 }
             }
 
-            private void save(byte[] bytes, String filePath, int quality) throws Exception {
-                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            /**
+             * Save JPEG bytes to file with optional software rotation.
+             * NOTE: Hardware JPEG_ORIENTATION is already set in the capture request,
+             * so this software rotation is typically redundant. Consider using saveRaw() instead
+             * by setting disableExifHeaderStripping=true for better performance.
+             *
+             * @param bytes JPEG image data
+             * @param filePath Output file path
+             * @param quality JPEG compression quality (0-100)
+             * @param maxWidth Maximum output width (0 = no limit)
+             * @param maxHeight Maximum output height (0 = no limit)
+             */
+            private void save(byte[] bytes, String filePath, int quality, int maxWidth, int maxHeight) throws Exception {
+                long startTime = System.currentTimeMillis();
 
-                // Determine the correct rotation
-                int deviceOrientation = activity.getWindowManager().getDefaultDisplay().getRotation();
-                int rotation = ORIENTATIONS.get(deviceOrientation);
+                // Calculate inSampleSize for efficient memory usage during decode
+                BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
+                boundsOptions.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, boundsOptions);
 
-                // Rotate the bitmap
-                Matrix matrix = new Matrix();
-                matrix.postRotate(rotation);
-                Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
-                // Save the rotated bitmap to a file
-                try (OutputStream output = new FileOutputStream(filePath)) {
-                    rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output);
+                int inSampleSize = 1;
+                if (maxWidth > 0 && maxHeight > 0) {
+                    inSampleSize = calculateInSampleSize(boundsOptions.outWidth, boundsOptions.outHeight, maxWidth, maxHeight);
                 }
+
+                BitmapFactory.Options decodeOptions = new BitmapFactory.Options();
+                decodeOptions.inSampleSize = inSampleSize;
+                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, decodeOptions);
+
+                long decodeTime = System.currentTimeMillis();
+                logMessage("save() decode took " + (decodeTime - startTime) + "ms, bitmap: " +
+                    bitmap.getWidth() + "x" + bitmap.getHeight() + ", inSampleSize: " + inSampleSize);
+
+                try {
+                    // Determine the correct rotation
+                    int deviceOrientation = activity.getWindowManager().getDefaultDisplay().getRotation();
+                    int rotation = ORIENTATIONS.get(deviceOrientation);
+
+                    Bitmap outputBitmap;
+                    if (rotation != 0) {
+                        // Rotate the bitmap
+                        Matrix matrix = new Matrix();
+                        matrix.postRotate(rotation);
+                        outputBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+
+                        // Recycle original bitmap if rotation created a new one
+                        if (outputBitmap != bitmap) {
+                            bitmap.recycle();
+                        }
+                    } else {
+                        outputBitmap = bitmap;
+                    }
+
+                    long rotateTime = System.currentTimeMillis();
+                    logMessage("save() rotate took " + (rotateTime - decodeTime) + "ms");
+
+                    // Save the output bitmap to a file
+                    try (OutputStream output = new FileOutputStream(filePath)) {
+                        outputBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output);
+                    } finally {
+                        outputBitmap.recycle();
+                    }
+
+                    long saveTime = System.currentTimeMillis();
+                    logMessage("save() compress+write took " + (saveTime - rotateTime) + "ms, total: " + (saveTime - startTime) + "ms");
+                } catch (Exception e) {
+                    if (!bitmap.isRecycled()) {
+                        bitmap.recycle();
+                    }
+                    throw e;
+                }
+            }
+
+            /**
+             * Calculate optimal inSampleSize for BitmapFactory to downsample during decode.
+             * Using power-of-2 values for optimal performance.
+             */
+            private int calculateInSampleSize(int width, int height, int maxWidth, int maxHeight) {
+                int inSampleSize = 1;
+                if (width > maxWidth || height > maxHeight) {
+                    final int halfWidth = width / 2;
+                    final int halfHeight = height / 2;
+                    while ((halfWidth / inSampleSize) >= maxWidth && (halfHeight / inSampleSize) >= maxHeight) {
+                        inSampleSize *= 2;
+                    }
+                }
+                return inSampleSize;
             }
 
             private void saveRaw(byte[] bytes, String filePath) throws Exception {
@@ -1479,6 +1598,53 @@ public class Camera2Activity extends Fragment {
 
         Logger.verbose("optimal preview size: w: " + optimalSize.getWidth() + " h: " + optimalSize.getHeight());
         return optimalSize;
+    }
+
+    /**
+     * Find the optimal capture size from available JPEG sizes that fits within the specified maximum dimensions.
+     * Prefers the largest size that doesn't exceed the limits while maintaining aspect ratio when possible.
+     *
+     * @param sizes Available JPEG output sizes
+     * @param maxWidth Maximum desired width
+     * @param maxHeight Maximum desired height
+     * @return The best matching Size, or null if none found
+     */
+    private Size findOptimalCaptureSize(Size[] sizes, int maxWidth, int maxHeight) {
+        if (sizes == null || sizes.length == 0) {
+            return null;
+        }
+
+        Size bestSize = null;
+        int bestArea = 0;
+
+        // Find the largest size that fits within the max limits
+        for (Size size : sizes) {
+            if (size.getWidth() <= maxWidth && size.getHeight() <= maxHeight) {
+                int area = size.getWidth() * size.getHeight();
+                if (area > bestArea) {
+                    bestArea = area;
+                    bestSize = size;
+                }
+            }
+        }
+
+        // If no size fits within limits, find the smallest available size
+        if (bestSize == null) {
+            int smallestArea = Integer.MAX_VALUE;
+            for (Size size : sizes) {
+                int area = size.getWidth() * size.getHeight();
+                if (area < smallestArea) {
+                    smallestArea = area;
+                    bestSize = size;
+                }
+            }
+            if (bestSize != null) {
+                logMessage("No capture size fits within " + maxWidth + "x" + maxHeight +
+                    ", using smallest available: " + bestSize.getWidth() + "x" + bestSize.getHeight());
+            }
+        }
+
+        return bestSize;
     }
 
     private int getOrientationHint() {

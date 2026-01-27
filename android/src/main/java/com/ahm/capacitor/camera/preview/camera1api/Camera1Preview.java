@@ -216,7 +216,10 @@ public class Camera1Preview implements Camera1Activity.CameraPreviewListener {
         // Image Dimensions - Optional
         Integer width = call.getInt("width", 0);
         Integer height = call.getInt("height", 0);
-        fragment.takePicture(width, height, quality);
+        // Max capture dimensions - for performance optimization (0 = no limit)
+        Integer maxCaptureWidth = call.getInt("maxCaptureWidth", 0);
+        Integer maxCaptureHeight = call.getInt("maxCaptureHeight", 0);
+        fragment.takePicture(width, height, quality, maxCaptureWidth, maxCaptureHeight);
     }
 
     @Override

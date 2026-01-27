@@ -519,7 +519,20 @@ public class Camera2Preview implements Camera2Activity.CameraPreviewListener {
             // Image Dimensions - Optional
             Integer width = call.getInt("width", 0);
             Integer height = call.getInt("height", 0);
-            fragment.takePicture(width, height, quality);
+
+            // Max capture size limits - Optional
+            // When set, constrains the captured image dimensions to improve performance
+            // by reducing file size and memory usage. Useful when displaying captured images
+            // in a WebView where full camera resolution is unnecessary.
+            Integer maxCaptureWidth = call.getInt("maxCaptureWidth", 0);
+            Integer maxCaptureHeight = call.getInt("maxCaptureHeight", 0);
+
+            Logger.debug(getLogTag(),
+                "Capture called with quality=" + quality +
+                ", width=" + width + ", height=" + height +
+                ", maxCaptureWidth=" + maxCaptureWidth + ", maxCaptureHeight=" + maxCaptureHeight);
+
+            fragment.takePicture(width, height, quality, maxCaptureWidth, maxCaptureHeight);
         } catch (Exception e) {
             Logger.debug(getLogTag(), "Capture exception: " + e);
             call.reject("failed to capture image: " + e.getMessage());

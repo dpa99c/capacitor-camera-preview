@@ -211,19 +211,25 @@ CameraPreview.hide();
 
 ### capture(options)
 
-| Option  | values | descriptions                                              |
-| ------- | ------ | --------------------------------------------------------- |
-| quality | number | (optional) The picture quality, 0 - 100, default 85       |
-| width   | number | (optional) The picture width, default 0 (Device default)  |
-| height  | number | (optional) The picture height, default 0 (Device default) |
+| Option          | values | descriptions                                                                                                                   |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| quality         | number | (optional) The picture quality, 0 - 100, default 85                                                                            |
+| width           | number | (optional) The picture width, default 0 (Device default)                                                                       |
+| height          | number | (optional) The picture height, default 0 (Device default)                                                                      |
+| maxCaptureWidth | number | (optional) Maximum capture width limit for performance optimization (0 = no limit). Reduces capture resolution. Android only.  |
+| maxCaptureHeight| number | (optional) Maximum capture height limit for performance optimization (0 = no limit). Reduces capture resolution. Android only. |
 
 <!-- <info>Take the picture. If width and height are not specified or are 0 it will use the defaults. If width and height are specified, it will choose a supported photo size that is closest to width and height specified and has closest aspect ratio to the preview. The argument `quality` defaults to `85` and specifies the quality/compression value: `0=max compression`, `100=max quality`.</info><br/> -->
+
+**Performance Note (Android):** On devices with high-resolution cameras, capturing full-resolution images (12+ megapixels) can cause noticeable delays during photo capture and display. Use `maxCaptureWidth` and `maxCaptureHeight` to limit the capture resolution for better performance. For example, setting `maxCaptureWidth: 1920` and `maxCaptureHeight: 1440` provides good quality for display while significantly improving capture speed.
 
 ```javascript
 import { CameraPreviewPictureOptions } from '@capacitor-community/camera-preview';
 
 const cameraPreviewPictureOptions: CameraPreviewPictureOptions = {
-  quality: 50
+  quality: 50,
+  maxCaptureWidth: 1920,  // Limit capture resolution for better performance (Android)
+  maxCaptureHeight: 1440
 };
 
 const result = await CameraPreview.capture(cameraPreviewPictureOptions);

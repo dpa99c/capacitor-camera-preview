@@ -46,6 +46,28 @@ export interface CameraPreviewPictureOptions {
    *
    * If left undefined, the `web` implementation will export a PNG, otherwise a JPEG will be generated */
   quality?: number;
+  /**
+   * Maximum capture width limit in pixels (0 = no limit, default 0).
+   * When set, constrains the captured image width to improve performance by reducing
+   * file size, memory usage, and display latency. The camera will select the largest
+   * available resolution that fits within this limit.
+   *
+   * Recommended value: 1920 for HD display quality.
+   *
+   * Android only.
+   */
+  maxCaptureWidth?: number;
+  /**
+   * Maximum capture height limit in pixels (0 = no limit, default 0).
+   * When set, constrains the captured image height to improve performance by reducing
+   * file size, memory usage, and display latency. The camera will select the largest
+   * available resolution that fits within this limit.
+   *
+   * Recommended value: 1080 for HD display quality.
+   *
+   * Android only.
+   */
+  maxCaptureHeight?: number;
 }
 
 export interface CameraSampleOptions {
