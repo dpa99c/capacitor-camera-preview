@@ -326,10 +326,18 @@ public class Camera2Activity extends Fragment {
         }
         final CameraCaptureSession[] stillCaptureSessionRef = new CameraCaptureSession[1];
         final boolean[] imageHandled = new boolean[] { false };
+        final long[] sessionConfiguredTime = new long[] { 0 };
+        final long imageReaderSetupTime = System.currentTimeMillis();
 
         ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
+                long imageAvailableTime = System.currentTimeMillis();
+                if (sessionConfiguredTime[0] > 0) {
+                    logMessage("Time from session configured to image available: " + (imageAvailableTime - sessionConfiguredTime[0]) + "ms");
+                }
+                logMessage("Time from ImageReader setup to image available: " + (imageAvailableTime - imageReaderSetupTime) + "ms");
+                
                 if (imageHandled[0]) {
                     // Drain any extra image to avoid ImageReader buffer exhaustion warnings.
                     logMessage("Extra image received; draining to avoid buffer exhaustion");
@@ -342,13 +350,21 @@ public class Camera2Activity extends Fragment {
 
                 Image image = null;
                 try {
+                    long acquireStartTime = System.currentTimeMillis();
                     image = reader.acquireLatestImage();
+                    long acquireEndTime = System.currentTimeMillis();
+                    logMessage("acquireLatestImage() took " + (acquireEndTime - acquireStartTime) + "ms");
+                    
                     if (image == null) {
                         throw new Exception("No image available from ImageReader");
                     }
+                    
+                    long bufferStartTime = System.currentTimeMillis();
                     ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                     byte[] bytes = new byte[buffer.capacity()];
                     buffer.get(bytes);
+                    long bufferEndTime = System.currentTimeMillis();
+                    logMessage("Buffer copy took " + (bufferEndTime - bufferStartTime) + "ms for " + (bytes.length / 1024) + "KB");
 
                     if (!storeToFile) {
                         String encodedImage = Base64.encodeToString(bytes, Base64.NO_WRAP);
@@ -483,9 +499,13 @@ public class Camera2Activity extends Fragment {
             }
 
             private void saveRaw(byte[] bytes, String filePath) throws Exception {
-                try (OutputStream output = new FileOutputStream(filePath)) {
+                long startTime = System.currentTimeMillis();
+                // Use BufferedOutputStream for better I/O performance, especially on slower storage
+                try (OutputStream output = new java.io.BufferedOutputStream(new FileOutputStream(filePath), 64 * 1024)) {
                     output.write(bytes);
                 }
+                long endTime = System.currentTimeMillis();
+                logMessage("saveRaw() file write took " + (endTime - startTime) + "ms for " + (bytes.length / 1024) + "KB");
             }
         };
         // Ensure we have a valid handler for image callbacks; fall back to main looper handler to avoid listener never firing
@@ -496,6 +516,8 @@ public class Camera2Activity extends Fragment {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession stillCaptureSession) {
                     try {
+                        sessionConfiguredTime[0] = System.currentTimeMillis();
+                        logMessage("Session configured, time from ImageReader setup: " + (sessionConfiguredTime[0] - imageReaderSetupTime) + "ms");
                         // reset retry counter on success to avoid stale state leading to hangs
                         configureSessionRetryCount = 0;
                         stillCaptureSessionRef[0] = stillCaptureSession;
