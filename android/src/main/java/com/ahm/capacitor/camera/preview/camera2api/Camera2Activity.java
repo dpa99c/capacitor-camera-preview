@@ -308,7 +308,10 @@ public class Camera2Activity extends Fragment {
         final ImageReader reader = ImageReader.newInstance(imageWidth, imageHeight, android.graphics.ImageFormat.JPEG, 2);
         List<Surface> outputSurfaces = new ArrayList<>(2);
         outputSurfaces.add(reader.getSurface());
-        outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+        final Surface capturePreviewSurface = getSafeCapturePreviewSurface();
+        if (capturePreviewSurface != null) {
+            outputSurfaces.add(capturePreviewSurface);
+        }
 
         final CaptureRequest.Builder stillCaptureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
         stillCaptureRequestBuilder.addTarget(reader.getSurface());
@@ -394,6 +397,11 @@ public class Camera2Activity extends Fragment {
                     try {
                         if (stillCaptureSessionRef[0] != null) {
                             stillCaptureSessionRef[0].close();
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        if (capturePreviewSurface != null) {
+                            capturePreviewSurface.release();
                         }
                     } catch (Exception ignored) {}
                     try {
@@ -579,7 +587,10 @@ public class Camera2Activity extends Fragment {
         final ImageReader reader = ImageReader.newInstance(width, height, android.graphics.ImageFormat.JPEG, 2);
         List<Surface> outputSurfaces = new ArrayList<>(2);
         outputSurfaces.add(reader.getSurface());
-        outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+        final Surface capturePreviewSurface = getSafeCapturePreviewSurface();
+        if (capturePreviewSurface != null) {
+            outputSurfaces.add(capturePreviewSurface);
+        }
         final CaptureRequest.Builder stillCaptureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
         stillCaptureRequestBuilder.addTarget(reader.getSurface());
         stillCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
@@ -639,6 +650,11 @@ public class Camera2Activity extends Fragment {
                     try {
                         if (stillCaptureSessionRef[0] != null) {
                             stillCaptureSessionRef[0].close();
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        if (capturePreviewSurface != null) {
+                            capturePreviewSurface.release();
                         }
                     } catch (Exception ignored) {}
                     try {
@@ -702,6 +718,33 @@ public class Camera2Activity extends Fragment {
             },
             mBackgroundHandler
         );
+    }
+
+    /**
+     * Best-effort preview surface for still capture.
+     *
+     * Some devices can invalidate the TextureView surface during capture setup, which leads to
+     * "Surface was abandoned" errors. When that happens, continue with ImageReader-only capture
+     * instead of failing immediately.
+     */
+    private Surface getSafeCapturePreviewSurface() {
+        try {
+            if (textureView == null || !textureView.isAvailable()) {
+                logMessage("Capture preview surface unavailable (TextureView not ready); using ImageReader-only capture");
+                return null;
+            }
+
+            SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+            if (surfaceTexture == null) {
+                logMessage("Capture preview surface unavailable (SurfaceTexture null); using ImageReader-only capture");
+                return null;
+            }
+
+            return new Surface(surfaceTexture);
+        } catch (Exception e) {
+            logMessage("Capture preview surface unavailable (" + e.getMessage() + "); using ImageReader-only capture");
+            return null;
+        }
     }
 
     public void startRecord(
