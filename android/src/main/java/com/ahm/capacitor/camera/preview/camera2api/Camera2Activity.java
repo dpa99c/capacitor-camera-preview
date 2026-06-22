@@ -14,6 +14,7 @@ import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
@@ -44,6 +45,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.OrientationEventListener;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
@@ -126,6 +128,19 @@ public class Camera2Activity extends Fragment {
         ORIENTATIONS.append(Surface.ROTATION_90, 0);
         ORIENTATIONS.append(Surface.ROTATION_180, 270);
         ORIENTATIONS.append(Surface.ROTATION_270, 180);
+    }
+
+    // Physical device orientation (based on accelerometer) – used for JPEG orientation
+    // when the app itself is locked to portrait. Defaults to ROTATION_0 (portrait).
+    private int physicalDeviceOrientation = Surface.ROTATION_0;
+    private OrientationEventListener orientationListener;
+
+    private static final SparseIntArray PHYSICAL_ORIENTATIONS = new SparseIntArray();
+    static {
+        PHYSICAL_ORIENTATIONS.append(Surface.ROTATION_0, 90);
+        PHYSICAL_ORIENTATIONS.append(Surface.ROTATION_90, 180);
+        PHYSICAL_ORIENTATIONS.append(Surface.ROTATION_180, 270);
+        PHYSICAL_ORIENTATIONS.append(Surface.ROTATION_270, 0);
     }
 
     private Handler mBackgroundHandler;
@@ -319,9 +334,9 @@ public class Camera2Activity extends Fragment {
         // Apply requested JPEG quality in the camera pipeline to avoid extra re-encoding work.
         stillCaptureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) quality);
 
-        // Always request the correct orientation from the camera pipeline to reduce post-processing cost.
-        int deviceOrientation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        stillCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(deviceOrientation));
+        // Use physical device orientation (from accelerometer) instead of display rotation
+        // so the JPEG is correctly oriented even when the activity is locked to portrait.
+        stillCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, PHYSICAL_ORIENTATIONS.get(physicalDeviceOrientation));
 
         Rect zoomRect = getZoomRect(getCurrentZoomLevel());
         if (zoomRect != null) {
@@ -451,9 +466,8 @@ public class Camera2Activity extends Fragment {
                     bitmap.getWidth() + "x" + bitmap.getHeight() + ", inSampleSize: " + inSampleSize);
 
                 try {
-                    // Determine the correct rotation
-                    int deviceOrientation = activity.getWindowManager().getDefaultDisplay().getRotation();
-                    int rotation = ORIENTATIONS.get(deviceOrientation);
+                    // Use physical device orientation for correct rotation
+                    int rotation = PHYSICAL_ORIENTATIONS.get(physicalDeviceOrientation);
 
                     Bitmap outputBitmap;
                     if (rotation != 0) {
@@ -595,9 +609,8 @@ public class Camera2Activity extends Fragment {
         stillCaptureRequestBuilder.addTarget(reader.getSurface());
         stillCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
         stillCaptureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) quality);
-        // Orientation
-        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        stillCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+        // Use physical device orientation for correct snapshot orientation
+        stillCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, PHYSICAL_ORIENTATIONS.get(physicalDeviceOrientation));
         Rect zoomRect = getZoomRect(getCurrentZoomLevel());
         if (zoomRect != null) {
             stillCaptureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoomRect);
@@ -1055,6 +1068,7 @@ public class Camera2Activity extends Fragment {
                 cameraOpened = true;
                 cameraOpenTimeoutHandler.removeCallbacksAndMessages(null);
                 cameraDevice = camera;
+                startOrientationListener();
                 createCameraPreview();
             } catch (Exception e) {
                 logException(e);
@@ -1852,12 +1866,54 @@ public class Camera2Activity extends Fragment {
     private void closeCamera() {
         isClosing = true;
         closeCaptureSession();
+        stopOrientationListener();
         if (cameraDevice != null) {
             cameraDevice.close();
             cameraDevice = null;
             mCameraCharacteristics = null;
             mSupportedPreviewSizes = null;
             mPreviewSize = null;
+        }
+    }
+
+    /**
+     * Starts an OrientationEventListener to track the physical device orientation
+     * via the accelerometer.  This is used instead of getDefaultDisplay().getRotation()
+     * because the latter always reports portrait when the activity is locked to portrait,
+     * which would produce incorrectly-rotated JPEGs when the user holds the phone in
+     * landscape.
+     */
+    private void startOrientationListener() {
+        if (orientationListener != null) return;
+        orientationListener = new OrientationEventListener(activity, SensorManager.SENSOR_DELAY_NORMAL) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
+                // Round to the nearest 90°: 0, 90, 180, or 270
+                int nearest = ((orientation + 45) / 90 * 90) % 360;
+                int rotation;
+                switch (nearest) {
+                    case 0:   rotation = Surface.ROTATION_0;   break;
+                    case 90:  rotation = Surface.ROTATION_90;  break;
+                    case 180: rotation = Surface.ROTATION_180; break;
+                    case 270: rotation = Surface.ROTATION_270; break;
+                    default:  return;
+                }
+                physicalDeviceOrientation = rotation;
+            }
+        };
+        if (orientationListener.canDetectOrientation()) {
+            orientationListener.enable();
+            logMessage("OrientationEventListener enabled for physical device orientation");
+        } else {
+            logMessage("OrientationEventListener cannot detect orientation; falling back to display rotation");
+        }
+    }
+
+    private void stopOrientationListener() {
+        if (orientationListener != null) {
+            orientationListener.disable();
+            orientationListener = null;
         }
     }
 

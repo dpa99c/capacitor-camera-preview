@@ -14,6 +14,7 @@ import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.hardware.Camera.ShutterCallback;
+import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
@@ -25,6 +26,7 @@ import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
@@ -96,6 +98,11 @@ public class Camera1Activity extends Fragment {
     private float opacity;
 
     private int lastJpegRotation = 0;
+
+    // Physical device orientation (from accelerometer) – used for JPEG rotation
+    // when the app itself is locked to portrait.
+    private int physicalDeviceOrientation = Surface.ROTATION_0;
+    private OrientationEventListener orientationListener;
 
     // The first rear facing camera
     private int defaultCameraId;
@@ -336,6 +343,7 @@ public class Camera1Activity extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        startOrientationListener();
 
         mCamera = Camera.open(defaultCameraId);
 
@@ -390,6 +398,7 @@ public class Camera1Activity extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
+        stopOrientationListener();
 
         // Because the Camera object is a shared resource, it's very important to release it when the activity is paused.
         if (mCamera != null) {
@@ -818,21 +827,23 @@ public class Camera1Activity extends Fragment {
                         params.setJpegQuality(quality);
                     }
 
-                    Activity activity = getActivity();
-                    int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+                    // Use physical device orientation (from accelerometer) instead of
+                    // display rotation so the JPEG rotation is correct even when the
+                    // activity is locked to portrait.
+                    int rotation = physicalDeviceOrientation;
                     int degrees = 0;
                     switch (rotation) {
                         case Surface.ROTATION_0:
                             degrees = 0;
                             break;
                         case Surface.ROTATION_90:
-                            degrees = 90;
+                            degrees = 270;
                             break;
                         case Surface.ROTATION_180:
                             degrees = 180;
                             break;
                         case Surface.ROTATION_270:
-                            degrees = 270;
+                            degrees = 90;
                             break;
                     }
 
@@ -951,7 +962,9 @@ public class Camera1Activity extends Fragment {
         Activity activity = getActivity();
 
         activity.getWindowManager().getDefaultDisplay().getMetrics(dm);
-        int currentScreenRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+        // Use physical device orientation so the video orientation hint is correct
+        // even when the activity is locked to portrait.
+        int currentScreenRotation = physicalDeviceOrientation;
 
         int degrees = 0;
         switch (currentScreenRotation) {
@@ -959,13 +972,13 @@ public class Camera1Activity extends Fragment {
                 degrees = 0;
                 break;
             case Surface.ROTATION_90:
-                degrees = 90;
+                degrees = 270;
                 break;
             case Surface.ROTATION_180:
                 degrees = 180;
                 break;
             case Surface.ROTATION_270:
-                degrees = 270;
+                degrees = 90;
                 break;
         }
 
@@ -1061,5 +1074,43 @@ public class Camera1Activity extends Fragment {
         float x = event.getX(0) - event.getX(1);
         float y = event.getY(0) - event.getY(1);
         return (float) Math.sqrt(x * x + y * y);
+    }
+
+    /**
+     * Starts an OrientationEventListener to track the physical device orientation
+     * via the accelerometer.  This is used instead of getDefaultDisplay().getRotation()
+     * because the latter always reports portrait when the activity is locked to portrait,
+     * which would produce incorrectly-rotated JPEGs when the user holds the phone in
+     * landscape.
+     */
+    private void startOrientationListener() {
+        if (orientationListener != null) return;
+        orientationListener = new OrientationEventListener(getActivity(), SensorManager.SENSOR_DELAY_NORMAL) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
+                // Round to the nearest 90°: 0, 90, 180, or 270
+                int nearest = ((orientation + 45) / 90 * 90) % 360;
+                int rotation;
+                switch (nearest) {
+                    case 0:   rotation = Surface.ROTATION_0;   break;
+                    case 90:  rotation = Surface.ROTATION_90;  break;
+                    case 180: rotation = Surface.ROTATION_180; break;
+                    case 270: rotation = Surface.ROTATION_270; break;
+                    default:  return;
+                }
+                physicalDeviceOrientation = rotation;
+            }
+        };
+        if (orientationListener.canDetectOrientation()) {
+            orientationListener.enable();
+        }
+    }
+
+    private void stopOrientationListener() {
+        if (orientationListener != null) {
+            orientationListener.disable();
+            orientationListener = null;
+        }
     }
 }

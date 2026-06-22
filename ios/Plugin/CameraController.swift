@@ -192,25 +192,48 @@ extension CameraController {
     func updateVideoOrientation() {
         assert(Thread.isMainThread) // UIApplication.statusBarOrientation requires the main thread.
 
-        let videoOrientation: AVCaptureVideoOrientation
+        // Preview orientation: always use statusBarOrientation so the preview
+        // stays correctly oriented in the portrait-locked app UI regardless of
+        // physical device rotation.
+        let previewOrientation: AVCaptureVideoOrientation
         switch UIApplication.shared.statusBarOrientation {
         case .portrait:
-            videoOrientation = .portrait
+            previewOrientation = .portrait
         case .landscapeLeft:
-            videoOrientation = .landscapeLeft
+            previewOrientation = .landscapeLeft
         case .landscapeRight:
-            videoOrientation = .landscapeRight
+            previewOrientation = .landscapeRight
         case .portraitUpsideDown:
-            videoOrientation = .portraitUpsideDown
+            previewOrientation = .portraitUpsideDown
         case .unknown:
             fallthrough
         @unknown default:
-            videoOrientation = .portrait
+            previewOrientation = .portrait
         }
 
-        previewLayer?.connection?.videoOrientation = videoOrientation
-        dataOutput?.connections.forEach { $0.videoOrientation = videoOrientation }
-        photoOutput?.connections.forEach { $0.videoOrientation = videoOrientation }
+        // Capture orientation: use physical device orientation so captured
+        // photos are correctly oriented even when the app is portrait-locked.
+        let captureOrientation: AVCaptureVideoOrientation
+        let deviceOrientation = UIDevice.current.orientation
+        switch deviceOrientation {
+        case .portrait:
+            captureOrientation = .portrait
+        case .landscapeLeft:
+            // Camera sensor sees the opposite landscape orientation
+            captureOrientation = .landscapeRight
+        case .landscapeRight:
+            captureOrientation = .landscapeLeft
+        case .portraitUpsideDown:
+            captureOrientation = .portraitUpsideDown
+        default:
+            // Fall back to statusBarOrientation when device orientation is
+            // faceUp, faceDown, or unknown (e.g. flat on a table).
+            captureOrientation = previewOrientation
+        }
+
+        previewLayer?.connection?.videoOrientation = previewOrientation
+        dataOutput?.connections.forEach { $0.videoOrientation = captureOrientation }
+        photoOutput?.connections.forEach { $0.videoOrientation = captureOrientation }
     }
 
     func switchCameras() throws {
