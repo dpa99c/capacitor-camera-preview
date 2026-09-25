@@ -22,6 +22,11 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setFlashMode", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startRecordVideo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopRecordVideo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getMaxZoom", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getZoom", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setZoom", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getMaxZoomLimit", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setMaxZoomLimit", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isCameraStarted", returnType: CAPPluginReturnPromise)
     ]
 
