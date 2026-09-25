@@ -1,5 +1,61 @@
 # Changelog
 
+## [v8.0.1](https://github.com/capacitor-community/camera-preview/compare/v8.0.0...v8.0.1) (2026-04-17)
+
+### Fixes
+
+- fix: SPM build fails on iOS (Capacitor 8) – product 'CapacitorCommunityCameraPreview' not found ([#419](https://github.com/capacitor-community/camera-preview/pull/419)), ([8a9f878](https://github.com/capacitor-community/camera-preview/commit/8a9f878c6c2ce970c9e47234101f992018ea3959)), closes [#417](https://github.com/capacitor-community/camera-preview/issues/417)
+
+## [v8.0.0](https://github.com/capacitor-community/camera-preview/compare/v7.0.5...v8.0.0) (2026-03-27)
+
+### Chores
+
+- feat: Capacitor 8 Support ([#407](https://github.com/capacitor-community/camera-preview/pull/407)), ([c877df5](https://github.com/capacitor-community/camera-preview/commit/c877df578e516751937369b19ced1203da508b41)), closes [#405](https://github.com/capacitor-community/camera-preview/issues/405)
+
+
+## [v7.0.5](https://github.com/capacitor-community/camera-preview/compare/v7.0.4...v7.0.5) (2026-02-17)
+
+### Fixes
+
+- fix: NullPointerException: Attempt to invoke virtual method 'boolean android.widget.FrameLayout.dispatchTouchEvent(android.view.MotionEvent)' on a null object reference ([#414](https://github.com/capacitor-community/camera-preview/pull/414)), ([2793df6](https://github.com/capacitor-community/camera-preview/commit/2793df66eac9b3d3e979c17ae43236550bfb0a5c)), closes [#274](https://github.com/capacitor-community/camera-preview/issues/274)
+
+## [v7.0.4](https://github.com/capacitor-community/camera-preview/compare/v7.0.3...v7.0.4) (2026-01-30)
+
+### Fixes
+
+- fix: Installation failure in version 7.0.3: patch-package not found (7.0.2 installs correctly) ([#412](https://github.com/capacitor-community/camera-preview/pull/412)), ([db45e3c](https://github.com/capacitor-community/camera-preview/commit/db45e3cbeb17c9e62bbc31ae844fc3c906b00374)), closes [#411](https://github.com/capacitor-community/camera-preview/issues/411)
+
+## [v7.0.3](https://github.com/capacitor-community/camera-preview/compare/v7.0.2...v7.0.3) (2026-01-28)
+
+### Features
+
+- feat(ios): Add SPM support ([#391](https://github.com/capacitor-community/camera-preview/pull/391)), ([5cba2e5](https://github.com/capacitor-community/camera-preview/commit/5cba2e5294ed4b58e7fe02d82b58d891b88f437f))
+
+### Fixes
+
+- fix(ios): iOS app crashes when plugin stop is called ([#392](https://github.com/capacitor-community/camera-preview/pull/392)), ([5794100](https://github.com/capacitor-community/camera-preview/commit/5794100dfb6135d03d7bad47f58b92df18eae410)), closes [#387](https://github.com/capacitor-community/camera-preview/issues/387)
+
+### Documentation
+
+- doc: Update README for integer values ([#382](https://github.com/capacitor-community/camera-preview/pull/382)), ([a34b51e](https://github.com/capacitor-community/camera-preview/commit/a34b51ec74f0e4ed38546b6d0552bf4d52a2f2fb))
+
+### Chores
+
+- chore: Update plugin and example app dependencies
+
+## [v7.0.2](https://github.com/capacitor-community/camera-preview/compare/v7.0.1...v7.0.2) (2025-06-17)
+
+### Fixes
+
+- bug: Camera preview not full screen in Capacitor 7 when height is not specified (Android) ([#389](https://github.com/capacitor-community/camera-preview/pull/389)), ([3fd9476](https://github.com/capacitor-community/camera-preview/commit/3fd947617856290175348d5a4fc7d08589ccce76)), closes [#384](https://github.com/capacitor-community/camera-preview/issues/384)
+
+## [v7.0.1](https://github.com/capacitor-community/camera-preview/compare/v7.0.0...v7.0.1) (2025-04-03)
+
+### Chores
+
+- fix: Remove unused files from res folde ([#366](https://github.com/capacitor-community/camera-preview/pull/373)), ([addcf31](https://github.com/capacitor-community/camera-preview/commit/addcf31bb72551d3e641aa90f9b03770691f93b7))
+- updated plugin and the example application dependencies
+
 ## [v7.0.0](https://github.com/capacitor-community/camera-preview/compare/v6.0.1...v7.0.0) (2025-02-17)
 
 ### Chores

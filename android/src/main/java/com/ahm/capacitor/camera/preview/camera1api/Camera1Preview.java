@@ -48,6 +48,7 @@ public class Camera1Preview implements Camera1Activity.CameraPreviewListener {
     private String recordStartCallbackId = "";
     private String recordStopCallbackId = "";
     private String cameraStartCallbackId = "";
+    private String cameraFlipCallbackId = "";
 
     // keep track of previously specified orientation to support locking orientation:
     private int previousOrientationRequest = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
@@ -76,11 +77,19 @@ public class Camera1Preview implements Camera1Activity.CameraPreviewListener {
                 call.reject("Camera is not running");
                 return;
             }
+            String reason = fragment.checkCanFlip();
+            if (reason != null) {
+                call.reject(reason);
+                return;
+            }
+            plugin.getBridge().saveCall(call);
+            cameraFlipCallbackId = call.getCallbackId();
+            call.setKeepAlive(true);
+            scheduleSavedCallTimeout(cameraFlipCallbackId, TIMEOUT_CAMERA_START_MS, "Camera flip timeout");
             fragment.switchCamera();
-            call.resolve();
         } catch (Exception e) {
             Logger.debug(getLogTag(), "Camera flip exception: " + e);
-            call.reject("failed to flip camera");
+            onCameraFlipError("failed to flip camera: " + e.getMessage());
         }
     }
 
@@ -730,6 +739,52 @@ public class Camera1Preview implements Camera1Activity.CameraPreviewListener {
             }
         }
         cameraStartCallbackId = "";
+    }
+
+    @Override
+    public void onCameraFlipped() {
+        cancelSavedCallTimeout(cameraFlipCallbackId);
+        if (plugin != null && plugin.getBridge() != null) {
+            PluginCall pluginCall = plugin.getBridge().getSavedCall(cameraFlipCallbackId);
+            if (pluginCall != null) {
+                try {
+                    pluginCall.resolve();
+                } catch (Exception e) {
+                    Logger.debug(getLogTag(), "onCameraFlipped resolve exception: " + e);
+                }
+                try {
+                    plugin.getBridge().releaseCall(pluginCall);
+                } catch (Exception e) {
+                    Logger.debug(getLogTag(), "Error releasing camera-flip call: " + e);
+                }
+            }
+        }
+        cameraFlipCallbackId = "";
+    }
+
+    @Override
+    public void onCameraFlipError(String message) {
+        cancelSavedCallTimeout(cameraFlipCallbackId);
+        if (plugin != null && plugin.getBridge() != null) {
+            PluginCall pluginCall = plugin.getBridge().getSavedCall(cameraFlipCallbackId);
+            if (pluginCall != null) {
+                try {
+                    pluginCall.reject(message);
+                } catch (Exception e) {
+                    Logger.debug(getLogTag(), "onCameraFlipError reject exception: " + e);
+                }
+                try {
+                    plugin.getBridge().releaseCall(pluginCall);
+                } catch (Exception e) {
+                    Logger.debug(getLogTag(), "Error releasing camera-flip-error call: " + e);
+                }
+            }
+        }
+        cameraFlipCallbackId = "";
+    }
+
+    public boolean isCameraStarted() {
+        return fragment != null && fragment.getCamera() != null && fragment.isPreviewReady();
     }
 
     private boolean hasView(PluginCall call) {

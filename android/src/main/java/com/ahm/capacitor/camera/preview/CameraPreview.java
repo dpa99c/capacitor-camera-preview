@@ -9,6 +9,7 @@ import android.hardware.camera2.CameraManager;
 import android.os.Build;
 import com.ahm.capacitor.camera.preview.camera1api.Camera1Preview;
 import com.ahm.capacitor.camera.preview.camera2api.Camera2Preview;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Logger;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -165,7 +166,7 @@ public class CameraPreview extends Plugin {
     }
 
     @PluginMethod
-    public void stop(final PluginCall call) {
+    public void stop(PluginCall call) {
         if (shouldUseCamera2Api()) {
             camera2Api.stop(call);
         } else {
@@ -207,6 +208,14 @@ public class CameraPreview extends Plugin {
         } else {
             camera1Api.stopRecordVideo(call);
         }
+    }
+
+    @PluginMethod
+    public void isCameraStarted(PluginCall call) {
+        boolean started = shouldUseCamera2Api() ? camera2Api.isCameraStarted() : camera1Api.isCameraStarted();
+        JSObject ret = new JSObject();
+        ret.put("value", started);
+        call.resolve(ret);
     }
 
     @PermissionCallback

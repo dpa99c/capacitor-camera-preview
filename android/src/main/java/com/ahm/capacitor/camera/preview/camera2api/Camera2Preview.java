@@ -78,6 +78,10 @@ public class Camera2Preview implements Camera2Activity.CameraPreviewListener {
         startCamera(call);
     }
 
+    public boolean isCameraStarted() {
+        return fragment != null && fragment.getCamera() != null;
+    }
+
     public void flip(PluginCall call) {
         try {
             // Guard against missing fragment to avoid NPE/hang

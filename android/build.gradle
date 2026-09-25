@@ -23,22 +23,27 @@ apply plugin: 'com.android.library'
 android {
     namespace = "com.ahm.capacitor.camera.preview.capacitorcamerapreview"
     compileSdk = project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion as Integer : 36
+
     defaultConfig {
         minSdkVersion = project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion as Integer : 24
         targetSdkVersion = project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion as Integer : 36
         versionCode = 1
         versionName = "1.0.0"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
     buildTypes {
         release {
             minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
     lint {
         abortOnError = false
     }
+
 }
 
 repositories {
@@ -46,12 +51,12 @@ repositories {
     mavenCentral()
 }
 
-
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.exifinterface:exifinterface:$androidxExifInterfaceVersion"
+
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
